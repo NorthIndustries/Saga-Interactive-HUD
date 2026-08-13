@@ -1,0 +1,7 @@
+build/
+deploy/
+scripts/work/
+scripts/__pycache__/
+Saga-Interactive-HUD.conf
+Saga-Interactive-HUD-GFN.conf
+Saga-Interactive-HUD.zip
