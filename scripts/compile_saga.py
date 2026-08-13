@@ -10,9 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = ROOT / "source" / "src"
 MANIFEST = Path(__file__).resolve().parent / "handler_manifest.json"
-SLOT_TEMPLATE = (
-    ROOT.parent / "Saga-North-HUD" / "source" / "Saga_AP_release.json"
-)
+SLOT_TEMPLATE = ROOT / "source" / "slots.json"
 OUTPUT_DEFAULT = ROOT / "build" / "Saga_interactive.json"
 
 INCLUDE_RE = re.compile(r"""^\s*include\s*\(\s*['"]src\\(.+?)['"]\s*\)\s*$""")
@@ -66,7 +64,7 @@ def make_handler(slot_key: str, signature: str, key: int, code: str, args: list[
 
 def load_slots() -> dict:
     template = json.loads(SLOT_TEMPLATE.read_text(encoding="utf-8"))
-    slots = dict(template["slots"])
+    slots = dict(template)
     if "11" not in slots:
         raise SystemExit("Expected slot21 in template slots")
     if not any(v.get("name") == "slot14" for v in slots.values() if isinstance(v, dict)):

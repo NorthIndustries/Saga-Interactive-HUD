@@ -15,6 +15,7 @@ mkdir -p "$WORK" build
 
 echo "Checking source tree and atlas..."
 test -d source/src
+test -f source/slots.json
 test -f source/src/version.lua
 test -f source/src/library_includes.lua
 test -f atlas/mydu_atlas.lua

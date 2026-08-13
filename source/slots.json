@@ -1,0 +1,17 @@
+{
+  "-3": { "name": "library", "type": { "methods": [], "events": [] } },
+  "-2": { "name": "system", "type": { "methods": [], "events": [] } },
+  "-1": { "name": "unit", "type": { "methods": [], "events": [] } },
+  "0": { "name": "slot1", "type": { "methods": [], "events": [] } },
+  "1": { "name": "slot2", "type": { "methods": [], "events": [] } },
+  "2": { "name": "slot3", "type": { "methods": [], "events": [] } },
+  "3": { "name": "slot4", "type": { "methods": [], "events": [] } },
+  "4": { "name": "slot5", "type": { "methods": [], "events": [] } },
+  "5": { "name": "slot6", "type": { "methods": [], "events": [] } },
+  "6": { "name": "slot7", "type": { "methods": [], "events": [] } },
+  "7": { "name": "slot8", "type": { "methods": [], "events": [] } },
+  "8": { "name": "slot9", "type": { "methods": [], "events": [] } },
+  "9": { "name": "slot10", "type": { "methods": [], "events": [] } },
+  "10": { "name": "slot11", "type": { "methods": [], "events": [] } },
+  "11": { "name": "slot21", "type": { "methods": [], "events": [] } }
+}
