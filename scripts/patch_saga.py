@@ -141,14 +141,20 @@ def yaml_arg(value: str) -> str:
     return f"'{value}'"
 
 
+def normalize_lua_for_yaml(code: str) -> list[str]:
+    """Flatten leading whitespace so every YAML literal line shares one indent level."""
+    return [line.strip().replace("\t", "    ") for line in code.splitlines() if line.strip()]
+
+
 def emit_lua_block(lines: list[str], indent_level: int, code: str) -> None:
     pad = INDENT * indent_level
     pad_code = INDENT * (indent_level + 1)
     lines.append(f"{pad}lua: |")
-    if not code:
+    normalized = normalize_lua_for_yaml(code)
+    if not normalized:
         lines.append(pad_code)
         return
-    for line in code.splitlines():
+    for line in normalized:
         lines.append(f"{pad_code}{line}")
 
 
