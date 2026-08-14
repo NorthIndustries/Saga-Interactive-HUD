@@ -145,7 +145,7 @@ function onAlt9()
 end
 
 function onWarpDown() -- Warp drive v
-    if warpdrive ~= nil then warpdrive.activateWarp() end
+    if links.warpdrive ~= nil then links.warpdrive.activateWarp() end
 end
 
 function onAntigravDown() -- Antigrav v

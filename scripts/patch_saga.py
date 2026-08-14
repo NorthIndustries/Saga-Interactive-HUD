@@ -21,15 +21,164 @@ ATLAS_PATTERNS = (
 EMPTY_SLOT_TYPE = {"methods": [], "events": []}
 HANDLER_SLOT_KEY_REMAP = {"-3": "-5", "-2": "-4"}
 HANDLER_SLOTS = {"-5": "library", "-4": "system", "-1": "unit"}
-FORCEFIELD_SLOTS = {"slot14", "slot21"}
-SLOT_YAML_NAMES = {f"slot{i}": f"s{i}" for i in range(1, 12)}
-SLOT_YAML_NAMES["slot14"] = "s14"
-SLOT_YAML_NAMES["slot21"] = "s21"
-SLOT_ALIAS_LINE = (
-    "slot1=s1 slot2=s2 slot3=s3 slot4=s4 slot5=s5 slot6=s6 slot7=s7 slot8=s8 "
-    "slot9=s9 slot10=s10 slot11=s11 slot14=s14 slot21=s21"
+# Like MyDU-ArchHUD: semantic slots with class match auto-link on apply.
+# Omit select for single elements; select: all for multiples.
+SEMANTIC_SLOTS = (
+    ("core", "CoreUnit", None),
+    ("warpdrive", "WarpDriveUnit", None),
+    ("shield", "ShieldGeneratorUnit", None),
+    ("antigrav", "AntiGravityGeneratorUnit", None),
+    ("gyro", "GyroUnit", None),
+    ("transponder", "TransponderUnit", None),
+    ("databank", "databank", "all"),
+    ("weapon", "WeaponUnit", "all"),
+    ("radar", "RadarUnit", "all"),
+    ("radarPvp", "RadarPVPUnit", None),
+    ("switch", "ManualSwitchUnit", "all"),
+    ("forcefield", "ForceFieldUnit", "all"),
+    ("screen", "ScreenUnit", "all"),
 )
 INDENT = "    "
+MAX_CONF_BYTES = 262_144
+MAX_HANDLER_BYTES = 200_000
+
+
+def _needs_space_between(last_char: str, first_char: str) -> bool:
+    if not last_char or not first_char:
+        return False
+    if last_char in "(=,[{" or first_char in ",;)]}.":
+        return False
+    if last_char.isalnum() or last_char in "_)]":
+        return first_char.isalnum() or first_char in "_'\"" or first_char == "["
+    return False
+
+
+def _minify_code_segment(text: str) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    if not text:
+        return ""
+    text = re.sub(r"\s*([,;()\[\]{}])\s*", r"\1", text)
+    text = re.sub(r"(?<![<>=~!])\s*=\s*(?!=)", "=", text)
+    for keyword in (
+        "local",
+        "function",
+        "end",
+        "then",
+        "else",
+        "elseif",
+        "do",
+        "return",
+        "in",
+        "and",
+        "or",
+        "not",
+    ):
+        text = re.sub(rf"(?<![\w]){keyword}(?![\w])", f" {keyword} ", text)
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _lua_tokens(code: str) -> list[tuple[str, str]]:
+    tokens: list[tuple[str, str]] = []
+    i = 0
+    n = len(code)
+    code_start = 0
+
+    def flush_code(end: int) -> None:
+        nonlocal code_start
+        if end > code_start:
+            tokens.append(("code", code[code_start:end]))
+        code_start = end
+
+    while i < n:
+        if code.startswith("--", i):
+            flush_code(i)
+            block = re.match(r"--\[(=*)\[", code[i:])
+            if block:
+                end_marker = f"]{block.group(1)}]"
+                j = code.find(end_marker, i + 4 + len(block.group(1)))
+                if j == -1:
+                    break
+                i = j + len(end_marker)
+            else:
+                j = code.find("\n", i)
+                i = n if j == -1 else j + 1
+            code_start = i
+            continue
+
+        char = code[i]
+        if char in "'\"":
+            flush_code(i)
+            quote = char
+            i += 1
+            chunk = [quote]
+            while i < n:
+                c = code[i]
+                chunk.append(c)
+                if c == "\\" and i + 1 < n:
+                    chunk.append(code[i + 1])
+                    i += 2
+                    continue
+                if c == quote:
+                    i += 1
+                    break
+                i += 1
+            tokens.append(("literal", "".join(chunk)))
+            code_start = i
+            continue
+
+        if char == "[":
+            long_string = re.match(r"\[(=*)\[", code[i:])
+            if long_string:
+                flush_code(i)
+                eq = long_string.group(1)
+                end_marker = f"]{eq}]"
+                j = code.find(end_marker, i + 2 + len(eq))
+                if j == -1:
+                    tokens.append(("literal", code[i:]))
+                    return tokens
+                tokens.append(("literal", code[i : j + len(end_marker)]))
+                i = j + len(end_marker)
+                code_start = i
+                continue
+
+        i += 1
+
+    flush_code(n)
+    return tokens
+
+
+def minify_lua(code: str) -> str:
+    parts: list[str] = []
+    last_char = ""
+
+    for kind, text in _lua_tokens(code):
+        if kind == "code":
+            segment = _minify_code_segment(text)
+            if not segment:
+                continue
+            if parts and _needs_space_between(last_char, segment[0]):
+                parts.append(" ")
+                last_char = " "
+            parts.append(segment)
+            last_char = segment[-1]
+            continue
+
+        if parts and _needs_space_between(last_char, text[0]):
+            parts.append(" ")
+            last_char = " "
+        parts.append(text)
+        last_char = text[-1]
+
+    return "".join(parts)
+
+
+def yaml_safe_lua(code: str) -> str:
+    text = minify_lua(code).replace("\r", " ").replace("\n", " ")
+    return re.sub(r"  +", " ", text).strip()
+
+
+def minified_size(code: str) -> int:
+    return len(yaml_safe_lua(code))
 
 
 def normalize_atlas_lua(text: str) -> str:
@@ -97,36 +246,6 @@ def normalize_slot_keys(data: dict) -> None:
             handler["filter"]["slotKey"] = HANDLER_SLOT_KEY_REMAP[slot_key]
 
 
-def element_slot_names(data: dict) -> list[str]:
-    items = sorted(
-        (int(key), value["name"])
-        for key, value in data["slots"].items()
-        if key.lstrip("-").isdigit() and int(key) >= 0
-    )
-    names = [name for _, name in items if name != "core"]
-    ordered = ["core", *names]
-    if "slot14" not in ordered:
-        rebuilt: list[str] = []
-        for name in ordered:
-            rebuilt.append(name)
-            if name == "slot11":
-                rebuilt.append("slot14")
-        ordered = rebuilt
-    return ordered
-
-
-def yaml_slot_name(original_name: str) -> str:
-    return SLOT_YAML_NAMES.get(original_name, original_name)
-
-
-def slot_class(original_name: str) -> tuple[str, str | None]:
-    if original_name == "core":
-        return "CoreUnit", None
-    if original_name in FORCEFIELD_SLOTS:
-        return "ForceFieldUnit", "manual"
-    return "ScreenUnit", "manual"
-
-
 def parse_signature(signature: str) -> tuple[str, list[str]]:
     match = re.match(r"([^(]+)\((.*)\)", signature)
     if not match:
@@ -141,21 +260,15 @@ def yaml_arg(value: str) -> str:
     return f"'{value}'"
 
 
-def normalize_lua_for_yaml(code: str) -> list[str]:
-    """Flatten leading whitespace so every YAML literal line shares one indent level."""
-    return [line.strip().replace("\t", "    ") for line in code.splitlines() if line.strip()]
-
-
 def emit_lua_block(lines: list[str], indent_level: int, code: str) -> None:
     pad = INDENT * indent_level
     pad_code = INDENT * (indent_level + 1)
     lines.append(f"{pad}lua: |")
-    normalized = normalize_lua_for_yaml(code)
-    if not normalized:
+    minified = yaml_safe_lua(code)
+    if not minified:
         lines.append(pad_code)
         return
-    for line in normalized:
-        lines.append(f"{pad_code}{line}")
+    lines.append(f"{pad_code}{minified}")
 
 
 def handler_yaml_key(filter_obj: dict) -> tuple[str, list[str] | None]:
@@ -177,30 +290,14 @@ def handler_yaml_key(filter_obj: dict) -> tuple[str, list[str] | None]:
     return event_name, yaml_args
 
 
-def emit_handlers(
-    lines: list[str],
-    handlers: list[dict],
-    indent_level: int,
-    *,
-    on_start_prefix: str | None = None,
-) -> None:
+def emit_handlers(lines: list[str], handlers: list[dict], indent_level: int) -> None:
     pad = INDENT * indent_level
     pad2 = INDENT * (indent_level + 1)
-    prefix_used = False
 
     for handler in handlers:
         filt = handler["filter"]
         code = handler["code"]
         event_name, yaml_args = handler_yaml_key(filt)
-
-        if (
-            event_name == "onStart"
-            and on_start_prefix
-            and not prefix_used
-            and not yaml_args
-        ):
-            code = on_start_prefix + "\n" + code.lstrip("\n")
-            prefix_used = True
 
         lines.append(f"{pad}{event_name}:")
         if yaml_args:
@@ -211,10 +308,8 @@ def emit_handlers(
 
 def to_yaml(data: dict, name: str) -> str:
     lines = [f"name: {name}", "", "slots:"]
-    for original_name in element_slot_names(data):
-        yaml_name = yaml_slot_name(original_name)
-        class_name, select_mode = slot_class(original_name)
-        lines.append(f"{INDENT}{yaml_name}:")
+    for slot_name, class_name, select_mode in SEMANTIC_SLOTS:
+        lines.append(f"{INDENT}{slot_name}:")
         lines.append(f"{INDENT}{INDENT}class: {class_name}")
         if select_mode:
             lines.append(f"{INDENT}{INDENT}select: {select_mode}")
@@ -236,8 +331,7 @@ def to_yaml(data: dict, name: str) -> str:
         if not slot_handlers:
             continue
         lines.append(f"{INDENT}{slot_name}:")
-        prefix = SLOT_ALIAS_LINE if slot_name == "library" else None
-        emit_handlers(lines, slot_handlers, indent_level=2, on_start_prefix=prefix)
+        emit_handlers(lines, slot_handlers, indent_level=2)
 
     return "\n".join(lines) + "\n"
 
@@ -287,10 +381,25 @@ def main() -> None:
         raise SystemExit(f"Missing atlas file: {ATLAS}")
 
     data, name = patch_source(inline=args.inline)
+    for handler in data.get("handlers", []):
+        size = minified_size(handler.get("code", ""))
+        if size > MAX_HANDLER_BYTES:
+            filt = handler.get("filter", {})
+            raise SystemExit(
+                f"Handler {filt.get('slotKey')} {filt.get('signature')} key={handler.get('key')} "
+                f"exceeds MyDU handler limit ({size} > {MAX_HANDLER_BYTES} bytes)"
+            )
+
     output = to_yaml(data, name)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(output, encoding="utf-8")
-    print(f"Wrote {args.output} ({args.output.stat().st_size} bytes)")
+    size = args.output.stat().st_size
+    print(f"Wrote {args.output} ({size} bytes)")
+    if not args.inline and size > MAX_CONF_BYTES:
+        raise SystemExit(
+            f"Output exceeds MyDU size limit ({size} > {MAX_CONF_BYTES} bytes). "
+            "Further source reduction or minification is required."
+        )
 
 
 if __name__ == "__main__":

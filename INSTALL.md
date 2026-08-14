@@ -24,7 +24,7 @@ From [GitHub Releases](https://github.com/NorthIndustries/Saga-Interactive-HUD/r
    You should have:
 
    - `Saga-Interactive-HUD.conf`
-   - `autoconf/custom/sagainteractive/custom/mydu_atlas.lua`
+   - `sagainteractive/custom/mydu_atlas.lua`
 
 3. In game, apply autoconf **Saga Interactive HUD v4.0 Alpha (North Industries)** on your control unit.
 4. Link slots:

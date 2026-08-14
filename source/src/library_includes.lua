@@ -4,10 +4,7 @@ include('src\\events\\system_flush.lua')
 include('src\\events\\system_input.lua')
 include('src\\events\\system_update.lua')
 include('src\\events\\timer_apu.lua')
-include('src\\events\\timer_fuel.lua')
 include('src\\events\\timer_debug.lua')
-include('src\\events\\unit_start.lua')
-include('src\\events\\unit_stop.lua')
 
 include('src\\behaviour\\autopilot.lua')
 include('src\\behaviour\\electronics.lua')
@@ -37,4 +34,7 @@ include('src\\hud\\hud.lua')
 
 include('src\\lib\\serialize.lua')
 include('src\\lib\\SVG.lua')
+
+include('src\\events\\unit_start.lua')
+include('src\\events\\unit_stop.lua')
 include('src\\version.lua')

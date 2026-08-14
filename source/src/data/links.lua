@@ -39,7 +39,7 @@ function scanLinks()
 				links.gyro = slot
 			elseif elementClass:find("antigravitygeneratorunit") then
 				links.antigrav = slot
-			elseif elementClass:find("combatdefense") then
+			elseif elementClass:find("combatdefense") or elementClass:find("transponder") then
 				links.transponder = slot
 			elseif elementClass:find('manualswitchunit') then
 				table.insert(links.switches, slot)
@@ -78,6 +78,6 @@ function finaliseLinks()
 
     -- Radar typing
     for i,radar in ipairs(links.radars) do
-        radar.pvp = (radar.slotName == 'slot21' or radar.slotName == 'slot14')
+        radar.pvp = radar.elementClass:find("radarpvp") ~= nil
     end
 end
